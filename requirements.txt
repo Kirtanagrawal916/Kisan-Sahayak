@@ -1,0 +1,5 @@
+google-adk
+mcp[cli]
+httpx
+requests
+python-dotenv
