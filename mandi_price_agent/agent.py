@@ -44,9 +44,15 @@ Reply only in simple Hindi. Never invent a specific live-sounding number
 when the tool has failed. Never discuss disease or weather — redirect
 politely if asked."""
 
+from orchestrator_agent.security import before_model_check, after_model_check
+
 root_agent = Agent(
     name="mandi_price_agent",
     model="gemini-2.5-flash",
+    description="Specialist for reporting crop market prices (mandi prices) to farmers.",
     instruction=SYSTEM_PROMPT,
-    tools=[toolset]
+    tools=[toolset],
+    before_model_callback=before_model_check,
+    after_model_callback=after_model_check
 )
+

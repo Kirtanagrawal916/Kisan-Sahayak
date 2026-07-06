@@ -53,10 +53,16 @@ always say to confirm the exact amount on the product label or with the
 local Krishi Vigyan Kendra. If severity is Gambhir, always add that the
 farmer should also consult a local expert in person."""
 
+from orchestrator_agent.security import before_model_check, after_model_check
+
 # Define the root_agent for the package, matching the blueprint specifications.
 root_agent = Agent(
-    name="kisan_doctor",
+    name="crop_doctor_agent",
     model="gemini-2.5-flash",
+    description="Specialist for crop disease diagnosis from photos and providing treatment/prevention advice.",
     instruction=SYSTEM_PROMPT,
-    tools=[lookup_disease_info]
+    tools=[lookup_disease_info],
+    before_model_callback=before_model_check,
+    after_model_callback=after_model_check
 )
+

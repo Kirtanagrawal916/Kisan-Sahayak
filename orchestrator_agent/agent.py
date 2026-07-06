@@ -37,9 +37,14 @@ Routing rules (in priority order):
 Never answer a farming question yourself. Never call a tool. Never ask
 more than one clarifying question per turn."""
 
+from orchestrator_agent.security import before_model_check, after_model_check
+
 root_agent = Agent(
     name="orchestrator_agent",
     model="gemini-2.5-flash",
     instruction=SYSTEM_PROMPT,
-    sub_agents=[crop_doctor_agent, mandi_price_agent, weather_agent]
+    sub_agents=[crop_doctor_agent, mandi_price_agent, weather_agent],
+    before_model_callback=before_model_check,
+    after_model_callback=after_model_check
 )
+

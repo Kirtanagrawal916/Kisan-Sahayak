@@ -48,9 +48,15 @@ Always give ONE clear recommendation with a one-line reason. Reply only
 in simple Hindi. Never discuss disease or price; redirect politely if
 asked."""
 
+from orchestrator_agent.security import before_model_check, after_model_check
+
 root_agent = Agent(
     name="weather_agent",
     model="gemini-2.5-flash",
+    description="Specialist for weather forecasts and spray/irrigation timing recommendations.",
     instruction=SYSTEM_PROMPT,
-    tools=[toolset]
+    tools=[toolset],
+    before_model_callback=before_model_check,
+    after_model_callback=after_model_check
 )
+
