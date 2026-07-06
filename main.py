@@ -98,80 +98,6 @@ class ChatRequest(BaseModel):
     session_id: Optional[str] = "default_session"
     user_id: Optional[str] = "default_user"
 
-# Conversation flow configuration (greetings, small talk, and domain keywords)
-# Decision: Regex word boundaries (\b) are used to ensure we match whole words and prevent substring false-positives.
-
-# Greetings patterns matching standard greetings (Requirement 1)
-GREETINGS_PATTERNS = [
-    r"\bhello\b", r"\bhi\b", r"\bhey\b", r"\bnamaste\b", r"\bgood\s+morning\b", r"\bgood\s+evening\b",
-    r"\bnamaskar\b", r"\bpranam\b", r"\bshubh\s+prabhat\b", r"\bshubh\s+sandhya\b", r"\bram\s+ram\b",
-    r"\bheyy\b"
-]
-
-# Small talk patterns matching conversational prompts (Requirement 2)
-SMALL_TALK_PATTERNS = [
-    r"\bthanks\b", r"\bthank\s+you\b", r"\bshukriya\b", r"\bdhanyawad\b", r"\bdhanyavaad\b",
-    r"\bhow\s+are\s+you\b", r"\baap\s+kaise\s+ho\b", r"\bkya\s+haal\s+hai\b", r"\bkaise\s+ho\b", r"\bkaise\s+hain\b",
-    r"\bwho\s+are\s+you\b", r"\btum\s+kaun\s+ho\b", r"\baap\s+kaun\s+hain\b", r"\bwhat\s+is\s+your\s+name\b", r"\bkaun\s+ho\b", r"\bkaun\s+hain\b",
-    r"\bwhat\s+can\s+you\s+do\b", r"\btum\s+kya\s+kar\s+sakte\s+ho\b", r"\baap\s+kya\s+kar\s+sakte\s+hain\b", r"\bkya\s+madad\b", r"\bhelp\b"
-]
-
-# Agricultural keywords defining our domain boundary (Requirement 4)
-# Decision: Only invoke the LLM agents if the user query touches on at least one of these relevant terms.
-IN_DOMAIN_KEYWORDS = [
-    # Crops & Fruits
-    "tomato", "wheat", "mango", "sugarcane", "onion", "potato", "rice", "cotton", "maize",
-    "tamatar", "gehun", "gehu", "aam", "ganna", "pyaaz", "pyaz", "aloo", "alu", "chawal", "dhan", "kapaas", "makka",
-    "crop", "plant", "fasal", "fasle", "pauda", "paude", "paudhon", "vegetable", "vegetables", "fruit", "fruits",
-    "grain", "grains", "seed", "seeds", "beej", "sapling", "saplings", "leaf", "leaves", "patti", "pattiyan", "pattiyon",
-    
-    # Diseases, pests & treatments
-    "disease", "diseases", "pest", "pests", "blight", "rust", "mildew", "virus", "spot", "spots", "yellowing", 
-    "wilt", "rot", "fungus", "fungal", "insect", "insects", "keeda", "keede", "keet", "bimari", "rog", "dhabbe",
-    "spray", "spraying", "pesticide", "pesticides", "fungicide", "fungicides", "insecticide", "insecticides",
-    "chemical", "dawai", "dawa", "keetnashak",
-    
-    # Soil, Fertilizer & Water
-    "fertilizer", "fertilizers", "manure", "urea", "khad", "soil", "mitti", "moisture", "irrigate", "irrigation",
-    "water", "watering", "sinchai", "paani", "pani", "npk", "potash", "nitrogen", "phosphorus",
-    
-    # Weather & Atmosphere
-    "weather", "rain", "raining", "forecast", "temperature", "wind", "windy", "mausam", "baarish", "barish",
-    "hawa", "taapman", "pawan",
-    
-    # Market, Mandi & Prices
-    "mandi", "price", "prices", "rate", "rates", "market", "markets", "cost", "bhaav", "bhav", "daam", "dam",
-    "bechna", "bikri", "sell", "selling", "buy", "buying", "bazaar", "bajar",
-    
-    # Farming General
-    "farm", "farmer", "farmers", "farming", "sow", "sowing", "harvest", "harvesting", "yield", "cultivation",
-    "kheti", "kisan", "krishi", "khet", "khetibadi", "kisani", "chasa", "chasi"
-]
-
-in_domain_regex = re.compile(r"\b(" + "|".join(re.escape(kw) for kw in IN_DOMAIN_KEYWORDS) + r")\b", re.IGNORECASE)
-
-def classify_query(text: str) -> str:
-    """Classifies the normalized user query into conversation routing buckets."""
-    # Convert query to lowercase and strip whitespace for matching
-    normalized = text.lower().strip()
-    
-    # 1. Check for greetings
-    for pattern in GREETINGS_PATTERNS:
-        if re.search(pattern, normalized):
-            return "GREETING"
-            
-    # 2. Check for small talk
-    for pattern in SMALL_TALK_PATTERNS:
-        if re.search(pattern, normalized):
-            return "SMALL_TALK"
-            
-    # 3. Check for agriculture domain keywords
-    if in_domain_regex.search(normalized):
-        return "IN_DOMAIN"
-        
-    # 4. Fallback is out of domain
-    return "OUT_OF_DOMAIN"
-
 # Endpoint: GET / (Requirement 1)
 @app.get("/")
 async def get_metadata():
@@ -199,7 +125,7 @@ async def chat(req: ChatRequest):
         if detect_prompt_injection(req.message):
             return {"response": BLOCK_RESPONSE_PROMPT_INJECTION}
             
-        # Decision: Run PII Redaction/Checks before classifying the query so sensitive details are not leaked (Requirement 5)
+        # Decision: Run PII Redaction/Checks before invoking the runner so sensitive details are not leaked (Requirement 5)
         redacted_msg, pii_types = redact_pii(req.message)
         warning_prefix = ""
         
@@ -210,47 +136,13 @@ async def chat(req: ChatRequest):
             clean_text_alpha = re.sub(r"[^\w\s]", "", clean_text).strip()
             if len(clean_text_alpha) < 3:
                 return {"response": BLOCK_RESPONSE_PII_ONLY}
-            message_to_process = redacted_msg
+            message_to_send = redacted_msg
         else:
-            message_to_process = req.message
+            message_to_send = req.message
 
-        # Classify the redacted query to determine conversation routing flow
-        classification = classify_query(message_to_process)
-        
-        # Decision: If the query is a greeting, return a friendly greeting instantly without invoking agents (Requirement 1)
-        if classification == "GREETING":
-            return {
-                "response": warning_prefix + "Namaste! Hello! I am Kisan Sahayak, your AI farming assistant. How can I help you today with crop disease diagnosis, mandi market rates, or weather advice?"
-            }
-            
-        # Decision: If small talk, respond with capabilities instantly to optimize quota usage (Requirement 2)
-        elif classification == "SMALL_TALK":
-            return {
-                "response": warning_prefix + (
-                    "I am Kisan Sahayak, your AI farming assistant. I am here to help you with:\n\n"
-                    "🌱 **Crop Disease Diagnosis**: Upload a tomato or wheat leaf photo to identify diseases and get verified treatments.\n"
-                    "📈 **Mandi Prices**: Query live market prices for crops (tomato/wheat) across different mandis.\n"
-                    "🌦️ **Agri-Weather Advice**: Get alerts on weather conditions and recommendations for pesticide spraying or irrigation timing.\n\n"
-                    "How can I help you with your kheti-baadi questions today?"
-                )
-            }
-            
-        # Decision: If out of domain, return a polite deflection detailing capabilities (Requirement 3)
-        elif classification == "OUT_OF_DOMAIN":
-            return {
-                "response": warning_prefix + (
-                    "I specialize in agriculture and farming-related guidance. I can assist you with:\n"
-                    "- 🌱 Crop disease diagnosis (tomato & wheat leaf photos)\n"
-                    "- 🌦️ Weather-driven spray/irrigation advice\n"
-                    "- 📈 Live mandi prices\n"
-                    "- 💊 Fertilizers and pesticide advice\n\n"
-                    "Please ask me a question related to farming or agriculture!"
-                )
-            }
-            
-        # Decision: For in-domain queries, invoke the ADK agent/orchestrator (Requirement 4)
-        # Note: We pass the original message to ADK so that it can run its own in-depth security callbacks and warning pipelines natively.
-        content = types.Content(role="user", parts=[types.Part.from_text(text=req.message)])
+        # Decision: For all queries (greetings, small talk, in-domain, out-of-domain), we pass it to the Orchestrator.
+        # This completely removes the old local regex classifiers (classify_query(), keywords, patterns).
+        content = types.Content(role="user", parts=[types.Part.from_text(text=message_to_send)])
         response_text = ""
         
         async for event in runner.run_async(
@@ -266,8 +158,9 @@ async def chat(req: ChatRequest):
         if not response_text:
             response_text = "Mujhe khed hai, main aapki baat samajh nahi paaya. Kripya dobara poochhein."
             
+        # Return final response with warning prefix prepended if PII was detected
         return {
-            "response": response_text
+            "response": warning_prefix + response_text
         }
         
     except HTTPException as he:
@@ -304,7 +197,11 @@ async def analyze_image(
             
         parts = [types.Part.from_bytes(data=file_bytes, mime_type=file.content_type)]
         if message and message.strip():
-            parts.append(types.Part.from_text(text=message))
+            # Apply security to accompanying text
+            if detect_prompt_injection(message):
+                return {"response": BLOCK_RESPONSE_PROMPT_INJECTION}
+            redacted_msg, pii_types = redact_pii(message)
+            parts.append(types.Part.from_text(text=redacted_msg))
             
         content = types.Content(role="user", parts=parts)
         response_text = ""
