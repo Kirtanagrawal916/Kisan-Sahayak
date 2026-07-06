@@ -6,11 +6,11 @@ import PromptInput from '../components/PromptInput';
 import ImageUploader from '../components/ImageUploader';
 
 // Configurable Backend API URL from Vite environment variables (Bonus Improvement)
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_BASE_URL = "https://kisan-sahayak-cqvu.onrender.com";
 
 const ChatPage = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  
+
   // Session persistence using localStorage (Bonus Improvement)
   const [recentChats, setRecentChats] = useState(() => {
     try {
@@ -109,14 +109,14 @@ const ChatPage = () => {
   const callApi = async (endpoint, options = {}, timeout = 60000) => {
     const controller = new AbortController();
     const id = setTimeout(() => controller.abort(), timeout);
-    
+
     try {
       const response = await fetch(`${API_BASE_URL}${endpoint}`, {
         ...options,
         signal: controller.signal
       });
       clearTimeout(id);
-      
+
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}));
         const errorMsg = errData.detail || `Server returned status ${response.status}`;
@@ -124,7 +124,7 @@ const ChatPage = () => {
         err.status = response.status;
         throw err;
       }
-      
+
       return await response.json();
     } catch (error) {
       clearTimeout(id);
@@ -136,7 +136,7 @@ const ChatPage = () => {
   const executeMessageRequest = async (currentChatId, userMessageText, attachedImg) => {
     setIsLoading(true);
     setErrorMessage(null);
-    
+
     // Save request parameters to state for retry functionality (Better Chat Experience)
     setFailedRequest({ chatId: currentChatId, text: userMessageText, attachedImg });
 
@@ -338,9 +338,9 @@ const ChatPage = () => {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-dark-bg text-slate-100 relative">
-      
+
       {/* Sidebar Panel */}
-      <Sidebar 
+      <Sidebar
         isOpen={sidebarOpen}
         onToggle={() => setSidebarOpen(!sidebarOpen)}
         recentChats={recentChats}
@@ -351,7 +351,7 @@ const ChatPage = () => {
 
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col h-full min-w-0 relative">
-        
+
         {/* Top Navbar */}
         <header className="h-16 border-b border-white/10 flex items-center justify-between px-4 bg-[#0a0f1d]/80 backdrop-blur-md z-30 shrink-0">
           <div className="flex items-center gap-3">
@@ -376,11 +376,10 @@ const ChatPage = () => {
             {/* Quick Toggle for leaf analysis panel */}
             <button
               onClick={() => setShowImageUploader(!showImageUploader)}
-              className={`text-xs px-3 py-1.5 rounded-lg border font-bold flex items-center gap-1.5 transition-all ${
-                showImageUploader
-                  ? 'bg-emerald-600 border-emerald-500 text-white shadow-lg shadow-emerald-950/20'
-                  : 'bg-slate-900/80 border-white/5 hover:border-emerald-500/30 text-slate-300 hover:text-white'
-              }`}
+              className={`text-xs px-3 py-1.5 rounded-lg border font-bold flex items-center gap-1.5 transition-all ${showImageUploader
+                ? 'bg-emerald-600 border-emerald-500 text-white shadow-lg shadow-emerald-950/20'
+                : 'bg-slate-900/80 border-white/5 hover:border-emerald-500/30 text-slate-300 hover:text-white'
+                }`}
             >
               <Leaf className="w-3.5 h-3.5" />
               <span>Diagnose Leaf</span>
@@ -390,7 +389,7 @@ const ChatPage = () => {
 
         {/* Content pane: Chat message feed OR Image Uploader overlay */}
         <div className="flex-1 overflow-hidden flex flex-col relative">
-          
+
           {showImageUploader ? (
             <div className="flex-1 flex items-center justify-center p-6 bg-slate-950/30">
               <div className="w-full max-w-lg space-y-4">
@@ -398,14 +397,14 @@ const ChatPage = () => {
                   <h3 className="text-sm font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
                     <Sparkles className="w-4 h-4 text-emerald-400" /> Leaf Analysis Center
                   </h3>
-                  <button 
+                  <button
                     onClick={() => setShowImageUploader(false)}
                     className="text-xs text-slate-400 hover:text-white underline"
                   >
                     Back to chat
                   </button>
                 </div>
-                <ImageUploader 
+                <ImageUploader
                   onImageSelect={handleImageSelect}
                   selectedImage={imageAttachment}
                   onClearImage={handleClearImage}
@@ -413,7 +412,7 @@ const ChatPage = () => {
               </div>
             </div>
           ) : (
-            <ChatWindow 
+            <ChatWindow
               messages={activeMessages}
               isLoading={isLoading}
               onSelectQuickAction={handleSelectQuickAction}
@@ -431,7 +430,7 @@ const ChatPage = () => {
                 <span>{errorMessage}</span>
               </div>
               {failedRequest && (
-                <button 
+                <button
                   onClick={handleRetry}
                   disabled={isLoading}
                   className="px-2.5 py-1 rounded bg-rose-600 hover:bg-rose-500 text-white font-bold transition-all text-xs flex items-center gap-1.5 shrink-0"
@@ -446,7 +445,7 @@ const ChatPage = () => {
 
         {/* Bottom Input Area */}
         <div className="shrink-0">
-          <PromptInput 
+          <PromptInput
             value={inputText}
             onChange={setInputText}
             onSubmit={handleSend}
