@@ -1,128 +1,62 @@
 import React, { useState, useEffect } from 'react';
-import { Menu, Leaf, Trash2, ArrowUpRight, Sparkles, MessageSquare, AlertCircle } from 'lucide-react';
+import { Menu, Leaf, Sparkles, AlertCircle, RefreshCw } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import ChatWindow from '../components/ChatWindow';
 import PromptInput from '../components/PromptInput';
 import ImageUploader from '../components/ImageUploader';
 
-// Import local crop disease samples for demonstration
-import blurryLeaf from '../../../../sample_images/blurry_leaf.png';
-import mangoLeaf from '../../../../sample_images/mango_leaf.png';
-import tomatoEarly from '../../../../sample_images/tomato_early_blight.png';
-import tomatoLate from '../../../../sample_images/tomato_late_blight.png';
-import wheatRust from '../../../../sample_images/wheat_brown_rust.png';
+// Configurable Backend API URL from Vite environment variables (Bonus Improvement)
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 const ChatPage = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [activeChatId, setActiveChatId] = useState(null);
+  
+  // Session persistence using localStorage (Bonus Improvement)
+  const [recentChats, setRecentChats] = useState(() => {
+    try {
+      const saved = localStorage.getItem('kisan_sahayak_chats');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      console.error("Failed to load chats from localStorage:", e);
+      return [];
+    }
+  });
+
+  const [activeChatId, setActiveChatId] = useState(() => {
+    try {
+      return localStorage.getItem('kisan_sahayak_active_chat_id') || null;
+    } catch (e) {
+      return null;
+    }
+  });
+
   const [inputText, setInputText] = useState('');
   const [imageAttachment, setImageAttachment] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [showImageUploader, setShowImageUploader] = useState(false);
+  const [errorMessage, setErrorMessage] = useState(null);
+  const [failedRequest, setFailedRequest] = useState(null);
 
-  // Mock initial conversations representing high-fidelity demo scenarios
-  const [recentChats, setRecentChats] = useState([
-    {
-      id: 'tomato-disease',
-      title: 'Tomato Leaf Disease Consult',
-      messages: [
-        {
-          role: 'user',
-          content: 'My tomato plant leaves have dark spots on them and they are turning yellow at the bottom. What is this?',
-          imageAttachment: {
-            previewUrl: tomatoEarly,
-            crop: 'tomato',
-            file: { name: 'tomato_leaf_spot.png' }
-          }
-        },
-        {
-          role: 'assistant',
-          content: 'I have analyzed the leaf photograph you provided. Your crop shows clear symptoms of **Tomato Early Blight** (caused by *Alternaria solani*).\n\nEarly Blight is a common fungal disease that starts on older leaves, forming target-like concentric circles. If untreated, it can spread to stems and fruits, reducing yields significantly.\n\nHere is your **Crop Doctor Diagnosis** report and remediation plan:',
-          diseaseData: {
-            cropName: "Tomato",
-            diseaseName: "Early Blight (Alternaria solani)",
-            confidence: 94,
-            symptoms: [
-              "Dark spots with concentric rings (target-like pattern) on older leaves.",
-              "Lower leaves turn yellow and drop off prematurely.",
-              "Sunken, dark spots on stems near ground level.",
-              "Leathery black spots near fruit stems."
-            ],
-            organicTreatments: [
-              "Apply copper-based organic fungicides (Bordeaux mixture).",
-              "Surgically prune and burn infected lower foliage.",
-              "Mulch the soil surface around plants to prevent spore splashback.",
-              "Spray Trichoderma viride bio-fungicide weekly."
-            ],
-            chemicalTreatments: [
-              "Spray Chlorothalonil or Mancozeb at 2g/litre of water.",
-              "Alternate with Difenoconazole to prevent fungal resistance.",
-              "Apply early in the morning under low wind conditions (< 8 km/h)."
-            ],
-            imageUrl: tomatoEarly
-          }
-        }
-      ]
-    },
-    {
-      id: 'wheat-mandi',
-      title: 'Wheat Mandi Price Query',
-      messages: [
-        {
-          role: 'user',
-          content: 'Show me the latest mandi rates for wheat near Nashik district.'
-        },
-        {
-          role: 'assistant',
-          content: 'Here are the current market rates for **Wheat (Lokwan Quality)** at the nearby Lasalgaon Mandi. Wheat prices are showing a positive upward trend (+2.4%) this week due to reduced market arrivals and strong procurement demand.',
-          priceData: {
-            commodity: "Wheat (Lokwan Quality)",
-            avgPrice: 2450,
-            highestPrice: 2620,
-            lowestPrice: 2280,
-            mandiName: "Lasalgaon Mandi",
-            distance: "22 km",
-            date: "Today",
-            trend: "up",
-            trendPercent: 2.4,
-            historicalPrices: [2350, 2380, 2400, 2420, 2450]
-          }
-        }
-      ]
-    },
-    {
-      id: 'pune-weather',
-      title: 'Pune Agri-Weather Alert',
-      messages: [
-        {
-          role: 'user',
-          content: 'Is the weather good to apply pesticide spray on my sugarcane crop in Pune?'
-        },
-        {
-          role: 'assistant',
-          content: 'Analyzing regional radar and meteorological data for Pune. There is a high probability of precipitation over the next 24 hours. **Pesticide spraying is not recommended today** as rainfall will wash away the active ingredients, leading to chemical waste and runoff.',
-          weatherData: {
-            location: "Pune, Maharashtra",
-            temp: 26,
-            condition: "Heavy Rain Forecast",
-            humidity: 88,
-            windSpeed: 18,
-            rainChance: 85,
-            advisories: [
-              { type: "warning", message: "Heavy showers predicted in next 6 hours. Hold off all foliar sprays and fertilizers." },
-              { type: "warning", message: "Wind speeds are high (18 km/h). High spray drift risk. Do not apply chemicals." },
-              { type: "success", message: "Excellent window for rainwater harvesting storage checks." }
-            ],
-            forecast: [
-              { day: "Tomorrow", temp: 25, icon: "rain", rainChance: 90 },
-              { day: "Mon, 06 Jul", temp: 27, icon: "cloudy", rainChance: 40 },
-              { day: "Tue, 07 Jul", temp: 29, icon: "sunny", rainChance: 10 }
-            ]
-          }
-        }
-      ]
+  // Auto-persist chats and active session ID on change
+  useEffect(() => {
+    try {
+      localStorage.setItem('kisan_sahayak_chats', JSON.stringify(recentChats));
+    } catch (e) {
+      console.error("Failed to save chats to localStorage:", e);
     }
-  ]);
+  }, [recentChats]);
+
+  useEffect(() => {
+    try {
+      if (activeChatId) {
+        localStorage.setItem('kisan_sahayak_active_chat_id', activeChatId);
+      } else {
+        localStorage.removeItem('kisan_sahayak_active_chat_id');
+      }
+    } catch (e) {
+      console.error("Failed to save activeChatId to localStorage:", e);
+    }
+  }, [activeChatId]);
 
   // Adjust sidebar state based on screen size on mount
   useEffect(() => {
@@ -146,11 +80,15 @@ const ChatPage = () => {
     setImageAttachment(null);
     setInputText('');
     setShowImageUploader(false);
+    setErrorMessage(null);
+    setFailedRequest(null);
   };
 
   const handleSelectChat = (id) => {
     setActiveChatId(id);
     setShowImageUploader(false);
+    setErrorMessage(null);
+    setFailedRequest(null);
   };
 
   const handleImageSelect = (imgObj) => {
@@ -162,44 +100,169 @@ const ChatPage = () => {
     setImageAttachment(null);
   };
 
-  const handleSelectQuickAction = (actionText) => {
-    // If it's a disease diagnosis action, open the file upload panel to help the user attach an image
-    if (actionText.includes("diagnose")) {
-      setInputText(actionText);
-      setShowImageUploader(true);
-    } else {
-      setInputText(actionText);
-      simulateSubmit(actionText, null);
+  // Helper function to generate unique session IDs
+  const generateSessionId = () => {
+    return 'session_' + Math.random().toString(36).substring(2, 11) + '_' + Date.now();
+  };
+
+  // Centralized API Service Layer (Bonus Improvement)
+  const callApi = async (endpoint, options = {}, timeout = 60000) => {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeout);
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+        ...options,
+        signal: controller.signal
+      });
+      clearTimeout(id);
+      
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        const errorMsg = errData.detail || `Server returned status ${response.status}`;
+        const err = new Error(errorMsg);
+        err.status = response.status;
+        throw err;
+      }
+      
+      return await response.json();
+    } catch (error) {
+      clearTimeout(id);
+      throw error;
     }
   };
 
-  const handleSend = () => {
-    if (!inputText.trim() && !imageAttachment) return;
-    simulateSubmit(inputText, imageAttachment);
+  // Core submission execution logic (Requirement 1 & 2)
+  const executeMessageRequest = async (currentChatId, userMessageText, attachedImg) => {
+    setIsLoading(true);
+    setErrorMessage(null);
+    
+    // Save request parameters to state for retry functionality (Better Chat Experience)
+    setFailedRequest({ chatId: currentChatId, text: userMessageText, attachedImg });
+
+    try {
+      if (!navigator.onLine) {
+        throw new Error("No internet connection detected. Please check your network.");
+      }
+
+      let responseJson;
+      if (attachedImg) {
+        // Build multipart/form-data payload (Requirement 2)
+        const formData = new FormData();
+        formData.append('file', attachedImg.file);
+        if (userMessageText) {
+          formData.append('message', userMessageText);
+        }
+        formData.append('session_id', currentChatId);
+        formData.append('user_id', 'default_user');
+
+        responseJson = await callApi('/analyze-image', {
+          method: 'POST',
+          body: formData
+        });
+      } else {
+        // Build JSON payload (Requirement 2)
+        responseJson = await callApi('/chat', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            message: userMessageText,
+            session_id: currentChatId,
+            user_id: 'default_user'
+          })
+        });
+      }
+
+      // Future-ready structured response mapping (Requirement Future Ready)
+      let weatherData = null;
+      let diseaseData = null;
+      let priceData = null;
+
+      if (responseJson.type && responseJson.data) {
+        if (responseJson.type === 'mandi') {
+          priceData = responseJson.data;
+        } else if (responseJson.type === 'weather') {
+          weatherData = responseJson.data;
+        } else if (responseJson.type === 'disease') {
+          diseaseData = responseJson.data;
+        }
+      }
+
+      const aiMsg = {
+        role: 'assistant',
+        content: responseJson.response || "No response content received.",
+        weatherData,
+        diseaseData,
+        priceData
+      };
+
+      // Append assistant response to recentChats list
+      setRecentChats(prev => prev.map(chat => {
+        if (chat.id === currentChatId) {
+          return {
+            ...chat,
+            messages: [...chat.messages, aiMsg]
+          };
+        }
+        return chat;
+      }));
+
+      // Clear failed request on success
+      setFailedRequest(null);
+    } catch (error) {
+      console.error("API Call failed:", error);
+      let friendlyError = "Something went wrong. Please try again.";
+      if (error.status === 429) {
+        friendlyError = "Gemini API rate limit exceeded. Please try again in a few moments.";
+      } else if (error.status === 500) {
+        friendlyError = "Internal Server Error occurred. Please try again later.";
+      } else if (error.message && error.message.includes("Failed to fetch")) {
+        friendlyError = "Unable to connect to the backend server. Please verify the server is running.";
+      } else if (error.message) {
+        friendlyError = error.message;
+      }
+      setErrorMessage(friendlyError);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const simulateSubmit = (text, attachedImg) => {
+  const handleSend = async () => {
+    if (isLoading) return;
+    if (!inputText.trim() && !imageAttachment) return;
+
+    const userMessageText = inputText;
+    const attachedImg = imageAttachment;
+
+    // Reset inputs immediately
+    setInputText('');
+    setImageAttachment(null);
+    setShowImageUploader(false);
+
     const userMsg = {
       role: 'user',
-      content: text || (attachedImg ? `Diagnose leaf disease for attached photo.` : ''),
+      content: userMessageText || (attachedImg ? 'Leaf image uploaded for analysis' : ''),
       imageAttachment: attachedImg
     };
 
-    // If starting a brand new conversation, create the chat entry first
     let currentChatId = activeChatId;
-    let newChatTitle = text ? (text.length > 25 ? text.substring(0, 25) + '...' : text) : 'Leaf Image Diagnosis';
-    
+    let isNewChat = false;
     if (!currentChatId) {
-      currentChatId = 'chat_' + Date.now();
+      currentChatId = generateSessionId();
+      isNewChat = true;
+    }
+
+    if (isNewChat) {
       const newChat = {
         id: currentChatId,
-        title: newChatTitle,
+        title: userMessageText ? (userMessageText.length > 25 ? userMessageText.substring(0, 25) + '...' : userMessageText) : 'Leaf Image Diagnosis',
         messages: [userMsg]
       };
       setRecentChats(prev => [newChat, ...prev]);
       setActiveChatId(currentChatId);
     } else {
-      // Append to existing chat
       setRecentChats(prev => prev.map(chat => {
         if (chat.id === currentChatId) {
           return {
@@ -211,162 +274,66 @@ const ChatPage = () => {
       }));
     }
 
-    // Clear prompt inputs
-    setInputText('');
-    setImageAttachment(null);
-    setShowImageUploader(false);
+    await executeMessageRequest(currentChatId, userMessageText, attachedImg);
+  };
 
-    // Simulate AI response
-    setIsLoading(true);
+  const handleSendWithText = async (text) => {
+    if (isLoading) return;
+    if (!text.trim()) return;
 
-    setTimeout(() => {
-      let aiMsg = {
-        role: 'assistant',
-        content: ''
+    const userMsg = {
+      role: 'user',
+      content: text,
+      imageAttachment: null
+    };
+
+    let currentChatId = activeChatId;
+    let isNewChat = false;
+    if (!currentChatId) {
+      currentChatId = generateSessionId();
+      isNewChat = true;
+    }
+
+    if (isNewChat) {
+      const newChat = {
+        id: currentChatId,
+        title: text.length > 25 ? text.substring(0, 25) + '...' : text,
+        messages: [userMsg]
       };
-
-      const normalizedText = text.toLowerCase();
-
-      // Simple AI Routing logic to demonstrate cards realistically
-      if (attachedImg || normalizedText.includes('diagnose') || normalizedText.includes('disease') || normalizedText.includes('blight') || normalizedText.includes('leaf')) {
-        const crop = attachedImg?.crop || 'tomato';
-        if (crop === 'wheat') {
-          aiMsg.content = `I have analyzed the wheat leaf image. It shows severe characteristics of **Wheat Brown Rust** (caused by *Puccinia recondita*). \n\nRust spots restrict photosynthesis and cause leaf dry-outs. Please check the diagnosis report below:`;
-          aiMsg.diseaseData = {
-            cropName: "Wheat",
-            diseaseName: "Brown Rust (Puccinia recondita)",
-            confidence: 91,
-            symptoms: [
-              "Small, orange-brown pustules on leaves, resembling rust spots.",
-              "Fungal spores can be easily rubbed off with fingers.",
-              "Leaves turn yellow and dry up from leaf-tip downward."
-            ],
-            organicTreatments: [
-              "Spray neem oil (1% solution) at weekly intervals.",
-              "Grow rust-resistant cultivars (like DBW 187 or HD 3226).",
-              "Avoid over-fertilizing with nitrogen which creates excessive dense foliage."
-            ],
-            chemicalTreatments: [
-              "Spray Propiconazole 25% EC at 1 ml/litre of water.",
-              "Alternatively apply Tebuconazole fungicide.",
-              "Ensure complete coverage of the plant canopy."
-            ],
-            imageUrl: wheatRust
-          };
-        } else if (crop === 'mango') {
-          aiMsg.content = `Analyzing the mango leaf photo. The dark, irregular necrotic spots are indicative of **Mango Anthracnose** (fungal disease caused by *Colletotrichum gloeosporioides*). Prompt pruning and organic sprays are recommended:`;
-          aiMsg.diseaseData = {
-            cropName: "Mango",
-            diseaseName: "Anthracnose (Colletotrichum gloeosporioides)",
-            confidence: 88,
-            symptoms: [
-              "Dark brown to black lesions on young leaves and shoots.",
-              "Coalesced spots creating large dry margins on the leaf blade.",
-              "Withered blossom twigs and blossom-blight symptoms."
-            ],
-            organicTreatments: [
-              "Prune dead twigs and burn to destroy fungal spore harbor.",
-              "Spray Pseudomonas fluorescens liquid formulation regularly.",
-              "Apply copper hydroxide spray during fruit development."
-            ],
-            chemicalTreatments: [
-              "Spray Carbendazim or Azoxystrobin (0.1% active concentration).",
-              "Spray copper oxychloride 3g/litre before flowering onset."
-            ],
-            imageUrl: mangoLeaf
-          };
-        } else {
-          // Default to Tomato Early Blight
-          aiMsg.content = `Analyzing the leaf image. Symptoms point to **Tomato Early Blight** (caused by *Alternaria solani*). Here are the details and treatments:`;
-          aiMsg.diseaseData = {
-            cropName: "Tomato",
-            diseaseName: "Early Blight (Alternaria solani)",
-            confidence: 95,
-            symptoms: [
-              "Dark spots with concentric target-like rings on older leaves.",
-              "Lower leaves yellowing and drooping off prematurely.",
-              "Stem lesions near soil line."
-            ],
-            organicTreatments: [
-              "Apply copper-based organic fungicides.",
-              "Prune and destroy infected lower leaves.",
-              "Mulch the soil surface around plants to prevent splashing."
-            ],
-            chemicalTreatments: [
-              "Spray Chlorothalonil or Mancozeb at 2g/litre of water.",
-              "Alternate with Difenoconazole to prevent resistance."
-            ],
-            imageUrl: tomatoEarly
-          };
-        }
-      } else if (normalizedText.includes('weather') || normalizedText.includes('rain') || normalizedText.includes('forecast') || normalizedText.includes('spray')) {
-        aiMsg.content = `Fetched live meteorological data for Pune. A rain front is moving in, meaning **foliar spraying should be avoided** to prevent pesticide wash-off. Soil humidity is high, which is excellent for sowing.`;
-        aiMsg.weatherData = {
-          location: "Pune, Maharashtra",
-          temp: 27,
-          condition: "Rainy",
-          humidity: 82,
-          windSpeed: 14,
-          rainChance: 80,
-          advisories: [
-            { type: "warning", message: "Moderate to heavy rain expected. Do not spray chemicals or apply top-dress urea." },
-            { type: "success", message: "Excellent soil moisture. Recommended time for sowing/potting operations." }
-          ],
-          forecast: [
-            { day: "Tomorrow", temp: 26, icon: "rain", rainChance: 85 },
-            { day: "Mon", temp: 28, icon: "cloudy", rainChance: 30 },
-            { day: "Tue", temp: 30, icon: "sunny", rainChance: 10 }
-          ]
-        };
-      } else if (normalizedText.includes('mandi') || normalizedText.includes('price') || normalizedText.includes('rate') || normalizedText.includes('wheat') || normalizedText.includes('onion')) {
-        const isOnion = normalizedText.includes('onion');
-        if (isOnion) {
-          aiMsg.content = `Here are the latest commodity market prices for **Red Onion** at Lasalgaon Mandi. Rates have dipped slightly due to increased arrivals from regional fields.`;
-          aiMsg.priceData = {
-            commodity: "Red Onion (Nashik Quality)",
-            avgPrice: 1950,
-            highestPrice: 2200,
-            lowestPrice: 1600,
-            mandiName: "Lasalgaon Mandi",
-            distance: "18 km",
-            date: "Today",
-            trend: "down",
-            trendPercent: 4.1,
-            historicalPrices: [2150, 2100, 2050, 2000, 1950]
-          };
-        } else {
-          aiMsg.content = `Here are the current commodity rates for **Wheat (Lokwan)** at the nearby Lasalgaon Mandi. Wheat prices are trending upwards (+2.4%) due to strong market demand.`;
-          aiMsg.priceData = {
-            commodity: "Wheat (Lokwan Quality)",
-            avgPrice: 2450,
-            highestPrice: 2620,
-            lowestPrice: 2280,
-            mandiName: "Lasalgaon Mandi",
-            distance: "22 km",
-            date: "Today",
-            trend: "up",
-            trendPercent: 2.4,
-            historicalPrices: [2350, 2380, 2400, 2420, 2450]
-          };
-        }
-      } else {
-        // General text fallback
-        aiMsg.content = `I am Kisan Sahayak, your AI agronomy assistant. \n\nI can help you with:\n1. **Crop Disease Diagnosis**: Upload a photo of an infected leaf (e.g. Tomato, Mango, Wheat).\n2. **Farming Weather Advice**: Ask about local weather forecasts and if it's safe to irrigate or spray.\n3. **Mandi Market Rates**: Ask for commodity prices (e.g. "Wheat prices" or "Onion rates") to find the best market value.\n\nWhat farming query do you have today?`;
-      }
-
-      // Add AI reply to message log
+      setRecentChats(prev => [newChat, ...prev]);
+      setActiveChatId(currentChatId);
+    } else {
       setRecentChats(prev => prev.map(chat => {
         if (chat.id === currentChatId) {
           return {
             ...chat,
-            messages: [...chat.messages, aiMsg]
+            messages: [...chat.messages, userMsg]
           };
         }
         return chat;
       }));
+    }
 
-      setIsLoading(false);
-    }, 2000);
+    setInputText('');
+    setImageAttachment(null);
+    setShowImageUploader(false);
+
+    await executeMessageRequest(currentChatId, text, null);
+  };
+
+  const handleRetry = async () => {
+    if (!failedRequest || isLoading) return;
+    const { chatId, text, attachedImg } = failedRequest;
+    await executeMessageRequest(chatId, text, attachedImg);
+  };
+
+  const handleSelectQuickAction = (actionText) => {
+    if (actionText.includes("diagnose")) {
+      setInputText(actionText);
+      setShowImageUploader(true);
+    } else {
+      handleSendWithText(actionText);
+    }
   };
 
   return (
@@ -454,6 +421,28 @@ const ChatPage = () => {
           )}
 
         </div>
+
+        {/* Beautiful inline error message panel (Requirement 8) */}
+        {errorMessage && (
+          <div className="w-full max-w-4xl mx-auto px-4 mb-2 shrink-0">
+            <div className="flex items-center justify-between p-3.5 rounded-xl border border-rose-500/20 bg-rose-500/10 text-rose-300 text-xs shadow-lg shadow-rose-950/15">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-4.5 h-4.5 shrink-0 text-rose-400" />
+                <span>{errorMessage}</span>
+              </div>
+              {failedRequest && (
+                <button 
+                  onClick={handleRetry}
+                  disabled={isLoading}
+                  className="px-2.5 py-1 rounded bg-rose-600 hover:bg-rose-500 text-white font-bold transition-all text-xs flex items-center gap-1.5 shrink-0"
+                >
+                  <RefreshCw className={`w-3 h-3 ${isLoading ? 'animate-spin' : ''}`} />
+                  Retry
+                </button>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Bottom Input Area */}
         <div className="shrink-0">
