@@ -62,3 +62,63 @@ Kisan Sahayak is powered by the Google Agent Development Kit (ADK). You can run 
 ## Demo Script
 
 To run a guided run-through demonstrating crop disease visual diagnosis, price retrieval, weather timing advice, and fallback behaviors, please refer to the walkthrough instructions in [demo_script.md](demo_script.md).
+
+## Deployment
+
+Kisan Sahayak is built as a standard ASGI FastAPI application and can be easily deployed to any ASGI-compatible platform.
+
+### Environment Variables
+
+Ensure the following environment variables are set in your production environment:
+- `GEMINI_API_KEY`: Your Gemini API Key.
+- `OPENWEATHER_API_KEY`: Your OpenWeatherMap API Key.
+- `MANDI_API_KEY`: Your Agmarknet API Key.
+- `PORT`: (Optional) The port on which the server should run (automatically managed by most hosting providers).
+
+---
+
+### Deploying to Render
+
+1. Create a new **Web Service** on Render.
+2. Connect your Git repository.
+3. Configure the following settings:
+   - **Runtime**: `Python 3`
+   - **Build Command**: `pip install -r requirements.txt`
+   - **Start Command**: `uvicorn main:app --host 0.0.0.0 --port $PORT`
+4. Add the required keys (`GEMINI_API_KEY`, `OPENWEATHER_API_KEY`, `MANDI_API_KEY`) under **Environment Variables**.
+5. Click **Deploy Web Service**.
+
+---
+
+### Deploying to Railway
+
+1. Create a new project on Railway.
+2. Select **Deploy from GitHub repo** and connect your repository.
+3. Railway will automatically detect Python. Configure the start command in your variables or Railway service settings:
+   - **Start Command**: `uvicorn main:app --host 0.0.0.0 --port $PORT`
+4. Add your API keys (`GEMINI_API_KEY`, `OPENWEATHER_API_KEY`, `MANDI_API_KEY`) under **Variables**.
+5. Click **Deploy**.
+
+---
+
+### Deploying to Google Cloud Run
+
+To deploy directly to Google Cloud Run using the `gcloud` CLI:
+
+1. Install the Google Cloud SDK and authenticate:
+   ```bash
+   gcloud auth login
+   gcloud config set project YOUR_PROJECT_ID
+   ```
+
+2. Deploy from source:
+   ```bash
+   gcloud run deploy kisan-sahayak \
+     --source . \
+     --region us-central1 \
+     --allow-unauthenticated \
+     --set-env-vars="GEMINI_API_KEY=your_gemini_key,OPENWEATHER_API_KEY=your_weather_key,MANDI_API_KEY=your_mandi_key"
+   ```
+
+3. Note the generated Service URL returned by Cloud Run.
+

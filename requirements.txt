@@ -3,3 +3,6 @@ mcp[cli]
 httpx
 requests
 python-dotenv
+fastapi
+uvicorn
+python-multipart
