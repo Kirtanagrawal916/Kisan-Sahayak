@@ -1,3 +1,5 @@
+Note: The demo is hosted on Render's free tier. The first request after inactivity may take up to ~50 seconds due to cold start.
+
 # Kisan Sahayak (Farmer's AI Assistant)
 
 Kisan Sahayak is an agentic AI assistant designed to help Indian farmers with crop disease diagnosis, mandi price queries, and weather-driven spray/irrigation advice.
